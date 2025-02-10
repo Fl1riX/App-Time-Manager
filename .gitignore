@@ -2,3 +2,4 @@
 myenv
 *\.log
 __pycache__
+.vscode

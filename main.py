@@ -1,4 +1,4 @@
-import psutil, sqlite3, logging, sys
+import psutil, sqlite3, logging, sys, time, threading
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidget, QWidget, QVBoxLayout, QPushButton, QDesktopWidget, QLabel
 from datetime import datetime
@@ -10,37 +10,64 @@ logging.basicConfig(
     encoding="utf-8",
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
-def get_inf_from_db():
-    try:
-        with sqlite3.connect("data.db") as con:
-            cur = con.cursor()
-
-            cur.execute("CREATE TABLE IF NOT EXISTS data (name TEXT, time TEXT, date TEXT)")
-            con.commit()
-
-            cur.execute("""SELECT name, date, MAX(time) FROM data GROUP BY name, date""")
-            result = cur.fetchall()
-
-        logging.info(f"✅ Результаты из базы данных: {result}")
-        
-        return result
-    except Exception as e:
-        logging.error(f"❌ Ошибка в получении данных из БД: {e}")
-        return 0
     
 def get_all_time():
     data = {}
-    for name, date, time_str in get_inf_from_db():
-        time = int(time_str.split(" ")[0])   
-        data[name] = data.get(name, 0) + time
+    try:
+        with sqlite3.connect("data.db") as con:
+            cur = con.cursor()
+            
+            cur.execute("""CREATE TABLE IF NOT EXISTS data (
+                        name TEXT, 
+                        date TEXT, 
+                        time INTEGER)""")
+            con.commit()
+            
+            cur.execute("""
+                SELECT name, date, MAX(CAST(time AS INT)) 
+                FROM data 
+                GROUP BY name, date
+            """)
+            result = cur.fetchall()
+            
+        logging.info(f"📊 Максимальное время за день: {result}")
         
-    return data                    
+        for name, date, max_time in result:
+            data[name] = data.get(name, 0) + max_time
 
+    except Exception as e:
+        logging.error(f"❌ Ошибка при получении данных: {e}")
+        return {}
+
+    return data
+                 
+def today_time(name):
+    with sqlite3.connect("data.db") as con:
+        cur = con.cursor()
+        today = datetime.now().date() 
+        cur.execute("SELECT MAX(CAST(time AS INT)) FROM data WHERE date=? and name=? ", (str(today), name,))
+
+        result = cur.fetchone()
+    
+    return result
+
+def get_tracked_apps():
+    with sqlite3.connect("data.db") as con: 
+        cur = con.cursor()
+        cur.execute("""SELECT name FROM data""")
+        result = list(set(cur.fetchall()))
+        
+    return result
+        
+def tracking_loop():
+    while True:
+        for i in get_tracked_apps():
+            print("Вызов main()")
+            main(i[0])
+            time.sleep(5)
+        
 def main(name):
     try:
-        get_inf_from_db()
-        
         min_time_list = []
 
         logging.info(f"🔍 Поиск процесса: {name}")
@@ -74,7 +101,7 @@ def main(name):
             with sqlite3.connect("data.db") as con:
                 cur = con.cursor()
 
-                time_str = f"{min_app_time} мин" if min_app_time < 60 else f"{round(min_app_time / 60, 2)} часа"
+                time_str = f"{min_app_time} мин"
                 cur.execute("INSERT INTO data (name, time, date) VALUES (?, ?, ?)", (name, time_str, datetime.now().date()))
                 con.commit()
 
@@ -100,6 +127,8 @@ class InfoWindow(QWidget):
         logging.info(f"Открыта информация о {title}")
         super().__init__()
         
+        data = get_all_time()
+        
         self.setWindowTitle(title)
         self.resize(400, 300)
         
@@ -107,12 +136,12 @@ class InfoWindow(QWidget):
         
         layout = QVBoxLayout()
         
-        self.label = QLabel("тут текст")
+        self.label = QLabel(f"Общее время: {data[title]} мин\nВремя за сегодня: {today_time(title)[0]} мин")
         self.label.setStyleSheet("QLabel { color: white; font-size: 15px}")
         
         layout.addWidget(self.label)
         
-        self.setLayout(layout)
+        self.setLayout(layout)       
         
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -130,8 +159,9 @@ class MainWindow(QMainWindow):
         self.text_list = QListWidget()
         self.text_list.itemClicked.connect(self.on_item_clicked)
         
-        if get_all_time()!= 0:
-            self.text_list.addItems(get_all_time())
+        data = get_all_time()
+        if data!= 0:
+            self.text_list.addItems(data)
         else:
             sys.exit()
             logging.error("❌ Ошибка при получении информации из бд, закрытие приложения.")
@@ -165,11 +195,10 @@ class AppTimeManager:
     def run(self):
         self.main_win.show()
         sys.exit(self.app.exec_())
-        
 
 if __name__ == "__main__":
-    main("Code.exe")
-    get_all_time()
+    th = threading.Thread(target=tracking_loop, daemon=True)
+    th.start()
     
     app_manager = AppTimeManager()
     app_manager.run()

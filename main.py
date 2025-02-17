@@ -1,6 +1,6 @@
 import psutil, sqlite3, logging, sys, time, threading
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidget, QWidget, QVBoxLayout, QPushButton, QDesktopWidget, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidget, QWidget, QVBoxLayout, QPushButton, QDesktopWidget, QLabel, QLineEdit
 from datetime import datetime
 
 logging.basicConfig(
@@ -17,17 +17,10 @@ def get_all_time():
         with sqlite3.connect("data.db") as con:
             cur = con.cursor()
             
-            cur.execute("""CREATE TABLE IF NOT EXISTS data (
-                        name TEXT, 
-                        date TEXT, 
-                        time INTEGER)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS data (name TEXT, date TEXT, time INTEGER)""")
             con.commit()
             
-            cur.execute("""
-                SELECT name, date, MAX(CAST(time AS INT)) 
-                FROM data 
-                GROUP BY name, date
-            """)
+            cur.execute("""SELECT name, date, MAX(CAST(time AS INT)) FROM data GROUP BY name, date""")
             result = cur.fetchall()
             
         logging.info(f"📊 Максимальное время за день: {result}")
@@ -37,7 +30,7 @@ def get_all_time():
 
     except Exception as e:
         logging.error(f"❌ Ошибка при получении данных: {e}")
-        return {}
+        return 0
 
     return data
                  
@@ -64,8 +57,8 @@ def tracking_loop():
         for i in get_tracked_apps():
             print("Вызов main()")
             main(i[0])
-            time.sleep(5)
-        
+            time.sleep(5) 
+
 def main(name):
     try:
         min_time_list = []
@@ -122,6 +115,8 @@ def main(name):
     except Exception as e:
         logging.error(f"❌ Неизвестная ошибка: {e}")
 
+
+"""APP GUI"""
 class InfoWindow(QWidget):
     def __init__(self, title):
         logging.info(f"Открыта информация о {title}")
@@ -130,32 +125,39 @@ class InfoWindow(QWidget):
         data = get_all_time()
         
         self.setWindowTitle(title)
-        self.resize(400, 300)
-        
+        self.setFixedSize(400, 300)
         self.setStyleSheet("background-color: black;")
         
         layout = QVBoxLayout()
         
-        self.label = QLabel(f"Общее время: {data[title]} мин\nВремя за сегодня: {today_time(title)[0]} мин")
-        self.label.setStyleSheet("QLabel { color: white; font-size: 15px}")
-        
-        layout.addWidget(self.label)
-        
-        self.setLayout(layout)       
+        #Текст с информацией
+        if data != 0:
+            self.label = QLabel(f"Общее время: {data[title]} мин\nВремя за сегодня: {today_time(title)[0]} мин")
+            self.label.setStyleSheet("QLabel { color: white; font-size: 15px}")
+
+            self.delete = QPushButton("Удалить")
+            self.delete.setStyleSheet("QPushButton { color: white; font-size: 15px}")
+            self.delete.clicked.connect(lambda:print(f"Удалить {title}"))
+
+            layout.addWidget(self.label)
+            layout.addWidget(self.delete)
+            self.setLayout(layout)
+            
+        else:
+            sys.exit()      
         
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         
         self.setWindowTitle("App Time Manager")
-        self.resize(800, 500)
-        
+        self.setFixedSize(800, 500)
         self.setStyleSheet("background-color: black;")
         
         central_widget = QWidget()
-        
         layout = QVBoxLayout()
         
+        #Спмсок отслеживаемых приложений
         self.text_list = QListWidget()
         self.text_list.itemClicked.connect(self.on_item_clicked)
         
@@ -163,23 +165,34 @@ class MainWindow(QMainWindow):
         if data!= 0:
             self.text_list.addItems(data)
         else:
-            sys.exit()
             logging.error("❌ Ошибка при получении информации из бд, закрытие приложения.")
+            sys.exit()
             
         self.text_list.setStyleSheet("QListWidget { color: white; font-size: 15px}")
         self.setCentralWidget(central_widget)
         
-        self.add_btn = QPushButton("Add")
+        #Кнопка добавления приложения в отслеживаемые
+        self.add_btn = QPushButton("Добавить")
         self.add_btn.setStyleSheet("QPushButton { color: white; font-size: 15px}")
-        self.add_btn.clicked.connect(lambda:print("Button pressed!"))
+        self.add_btn.clicked.connect(self.track_app)
+        
+        #Поле ввода текста
+        self.entry = QLineEdit(self)
+        self.entry.setPlaceholderText("Введите название процесса")
+        self.entry.setStyleSheet("QLineEdit { color: white; font-size: 15px}")
         
         layout.addWidget(self.text_list)
+        layout.addWidget(self.entry)
         layout.addWidget(self.add_btn)
         central_widget.setLayout(layout)
         
     def on_item_clicked(self, item):
         self.inf_win = InfoWindow(item.text())
         self.inf_win.show()
+    
+    def track_app(self):
+        name = self.entry.text()
+        main(name)
 
 class AppTimeManager:   
     def __init__(self):

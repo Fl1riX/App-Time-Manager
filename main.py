@@ -19,14 +19,23 @@ def get_inf_from_db():
             cur.execute("CREATE TABLE IF NOT EXISTS data (name TEXT, time TEXT, date TEXT)")
             con.commit()
 
-            cur.execute("SELECT name, MAX(time) FROM data GROUP BY name")
-            result = cur.fetchall()  
-            logging.info(f"✅ Результаты из базы данных: {result}")
+            cur.execute("""SELECT name, date, MAX(time) FROM data GROUP BY name, date""")
+            result = cur.fetchall()
 
+        logging.info(f"✅ Результаты из базы данных: {result}")
+        
         return result
     except Exception as e:
-        logging.error(f"❌ Ошибка в болучении данных из бд: {e}")
+        logging.error(f"❌ Ошибка в получении данных из БД: {e}")
         return 0
+    
+def get_all_time():
+    data = {}
+    for name, date, time_str in get_inf_from_db():
+        time = int(time_str.split(" ")[0])   
+        data[name] = data.get(name, 0) + time
+        
+    return data                    
 
 def main(name):
     try:
@@ -65,8 +74,8 @@ def main(name):
             with sqlite3.connect("data.db") as con:
                 cur = con.cursor()
 
-                time_str = f"{min_app_time} минут" if min_app_time < 60 else f"{round(min_app_time / 60, 2)} часа"
-                cur.execute("INSERT INTO data (name, time, date) VALUES (?, ?, ?)", (name, time_str, datetime.now().replace(second=0, microsecond=0)))
+                time_str = f"{min_app_time} мин" if min_app_time < 60 else f"{round(min_app_time / 60, 2)} часа"
+                cur.execute("INSERT INTO data (name, time, date) VALUES (?, ?, ?)", (name, time_str, datetime.now().date()))
                 con.commit()
 
                 logging.info(f"💾 Данные записаны: {name}, {time_str}")
@@ -121,9 +130,8 @@ class MainWindow(QMainWindow):
         self.text_list = QListWidget()
         self.text_list.itemClicked.connect(self.on_item_clicked)
         
-        if get_inf_from_db() != 0:
-            for i in get_inf_from_db():
-                self.text_list.addItems([str(i).split(",")[0].split("'")[1]])
+        if get_all_time()!= 0:
+            self.text_list.addItems(get_all_time())
         else:
             sys.exit()
             logging.error("❌ Ошибка при получении информации из бд, закрытие приложения.")
@@ -161,6 +169,7 @@ class AppTimeManager:
 
 if __name__ == "__main__":
     main("Code.exe")
+    get_all_time()
     
     app_manager = AppTimeManager()
     app_manager.run()

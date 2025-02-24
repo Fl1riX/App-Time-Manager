@@ -1,6 +1,7 @@
 import psutil, sqlite3, logging, sys, time, threading
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidget, QWidget, QVBoxLayout, QPushButton, QDesktopWidget, QLabel, QLineEdit
+from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidget, QWidget, QVBoxLayout, QPushButton, QDesktopWidget, QLabel, QLineEdit, QMessageBox
+from PyQt5.QtCore import pyqtSignal
 from datetime import datetime
 
 logging.basicConfig(
@@ -25,7 +26,7 @@ def get_all_time():
             
         logging.info(f"📊 Максимальное время за день: {result}")
         
-        for name, date, max_time in result:
+        for name, _, max_time in result:
             data[name] = data.get(name, 0) + max_time
 
     except Exception as e:
@@ -59,6 +60,14 @@ def tracking_loop():
             main(i[0])
             time.sleep(5) 
 
+def show_error(message):
+    error_win = QMessageBox()
+    error_win.setIcon(QMessageBox.Critical)
+    error_win.setWindowTitle("Ошибка")
+    error_win.setText(message)
+    error_win.setStandardButtons(QMessageBox.Ok)  # Кнопка "ОК"
+    error_win.exec_()
+
 def main(name):
     try:
         min_time_list = []
@@ -78,6 +87,7 @@ def main(name):
 
         if not min_time_list:
             logging.warning(f"⚠️ Процесс '{name}' не найден.")
+            show_error(f"Процесс '{name}' не найден.")
             return
 
         start_time = min(min_time_list)
@@ -105,19 +115,24 @@ def main(name):
 
     except psutil.NoSuchProcess:
         logging.error(f"❌ Процесс '{name}' не найден.")
+        show_error(f"Процесс '{name}' не найден.")
         
     except psutil.AccessDenied:
         logging.error(f"🚫 Нет доступа к процессу '{name}'.")
+        show_error(f"Нет доступа к процессу '{name}'.")
 
     except psutil.ZombieProcess:
         logging.error(f"⚰️ Процесс '{name}' стал зомби.")
+        show_error(f"Процесс '{name}' стал зомби.")
 
     except Exception as e:
         logging.error(f"❌ Неизвестная ошибка: {e}")
+        show_error(f"Неизвестная ошибка: {e}")
 
 
 """APP GUI"""
 class InfoWindow(QWidget):
+    deleted = pyqtSignal()
     def __init__(self, title):
         logging.info(f"Открыта информация о {title}")
         super().__init__()
@@ -132,19 +147,31 @@ class InfoWindow(QWidget):
         
         #Текст с информацией
         if data != 0:
-            self.label = QLabel(f"Общее время: {data[title]} мин\nВремя за сегодня: {today_time(title)[0]} мин")
-            self.label.setStyleSheet("QLabel { color: white; font-size: 15px}")
-
             self.delete = QPushButton("Удалить")
             self.delete.setStyleSheet("QPushButton { color: white; font-size: 15px}")
-            self.delete.clicked.connect(lambda:print(f"Удалить {title}"))
+            self.delete.clicked.connect(lambda: (self.delete_app(title)))
 
+            if today_time(title)[0] != None:
+                self.label = QLabel(f"Общее время: {data[title]} мин\nВремя за сегодня: {today_time(title)[0]} мин")
+            else:
+                self.label = QLabel(f"Общее время: {data[title]} мин\nВремя за сегодня: 0 мин")
+                
+            self.label.setStyleSheet("QLabel { color: white; font-size: 15px}")
             layout.addWidget(self.label)
             layout.addWidget(self.delete)
             self.setLayout(layout)
-            
         else:
-            sys.exit()      
+            sys.exit()    
+    
+    def delete_app(self, name):
+        with sqlite3.connect("data.db") as con:
+            cur = con.cursor()  
+            
+            cur.execute("""DELETE FROM data WHERE name=?""", (name,))
+            con.commit()
+            
+        self.deleted.emit()
+        self.close()
         
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -157,13 +184,13 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         layout = QVBoxLayout()
         
-        #Спмсок отслеживаемых приложений
+        #Список отслеживаемых приложений
         self.text_list = QListWidget()
-        self.text_list.itemClicked.connect(self.on_item_clicked)
+        self.text_list.itemClicked.connect(lambda item: self.on_item_clicked(item))
         
         data = get_all_time()
         if data!= 0:
-            self.text_list.addItems(data)
+            self.refresh_list()
         else:
             logging.error("❌ Ошибка при получении информации из бд, закрытие приложения.")
             sys.exit()
@@ -174,7 +201,7 @@ class MainWindow(QMainWindow):
         #Кнопка добавления приложения в отслеживаемые
         self.add_btn = QPushButton("Добавить")
         self.add_btn.setStyleSheet("QPushButton { color: white; font-size: 15px}")
-        self.add_btn.clicked.connect(self.track_app)
+        self.add_btn.clicked.connect(lambda:(self.track_app(), self.refresh_list(), self.entry.clear()))
         
         #Поле ввода текста
         self.entry = QLineEdit(self)
@@ -187,8 +214,14 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(layout)
         
     def on_item_clicked(self, item):
-        self.inf_win = InfoWindow(item.text())
-        self.inf_win.show()
+        self.info_win = InfoWindow(item.text())
+        self.info_win.deleted.connect(self.refresh_list)  # Связываем сигнал с обновлением списка
+        self.info_win.show()
+    
+    def refresh_list(self): #обновляем список отслеживаемых приложений
+        self.text_list.clear()
+        data = get_all_time()
+        self.text_list.addItems(data.keys())
     
     def track_app(self):
         name = self.entry.text()

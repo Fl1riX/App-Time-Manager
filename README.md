@@ -40,12 +40,6 @@ python main.py
 4. В списке появятся добавленные процессы, нажав на них, можно увидеть детальную статистику.  
 5. Чтобы удалить процесс из отслеживаемых, откройте его статистику и нажмите **"Удалить"**.  
 
-## 🔧 Возможные улучшения  
-- Оптимизация работы с базой данных  
-- Добавление программы в автозапуск  
-- Написание тестов  
-- Улучшение UI  
-
 ## 🛠 Технологии  
 - **Язык программирования**: Python  
 - **GUI**: PyQt5  
@@ -54,9 +48,6 @@ python main.py
 
 ## 📜 Логи  
 Все важные события записываются в файл `manager_logs.log`, включая ошибки и успешные операции.  
-
-## 📩 Обратная связь  
-Если у вас есть предложения или вопросы, создавайте issue или pull request в репозитории проекта. 🚀
 
 # App Time Manager  
 
@@ -96,13 +87,7 @@ python main.py
 2. Enter the process name (e.g., `chrome.exe`) in the input field.  
 3. Click the **"Add"** button to start tracking the process.  
 4. The added processes will appear in the list. Click on any process to view detailed statistics.  
-5. To remove a process from tracking, open its statistics window and click **"Delete"**.  
-
-## 🔧 Possible Improvements  
-- Database optimization  
-- Adding the application to system startup  
-- Writing unit tests  
-- UI enhancements  
+5. To remove a process from tracking, open its statistics window and click **"Delete"**.    
 
 ## 🛠 Technologies  
 - **Programming Language**: Python  
@@ -112,6 +97,4 @@ python main.py
 
 ## 📜 Logs  
 All important events, including errors and successful operations, are recorded in the `manager_logs.log` file.  
-
-## 📩 Feedback  
-If you have any suggestions or questions, feel free to create an issue or pull request in the project repository. 🚀  
+ 

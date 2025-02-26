@@ -12,8 +12,6 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
     
-##TODO: оптимизировать бд, сделать добавление в автозагрузку и мб сделать тесты
-    
 def get_all_time():
     data = {}
     try:

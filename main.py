@@ -12,14 +12,13 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
     
+##TODO: оптимизировать бд, сделать добавление в автозагрузку и мб сделать тесты
+    
 def get_all_time():
     data = {}
     try:
         with sqlite3.connect("data.db") as con:
             cur = con.cursor()
-            
-            cur.execute("""CREATE TABLE IF NOT EXISTS data (name TEXT, date TEXT, time INTEGER)""")
-            con.commit()
             
             cur.execute("""SELECT name, date, MAX(CAST(time AS INT)) FROM data GROUP BY name, date""")
             result = cur.fetchall()
@@ -48,6 +47,9 @@ def today_time(name):
 def get_tracked_apps():
     with sqlite3.connect("data.db") as con: 
         cur = con.cursor()
+        cur.execute("""CREATE TABLE IF NOT EXISTS data (name TEXT, date TEXT, time INTEGER)""")
+        con.commit()
+        
         cur.execute("""SELECT name FROM data""")
         result = list(set(cur.fetchall()))
         
@@ -56,16 +58,16 @@ def get_tracked_apps():
 def tracking_loop():
     while True:
         for i in get_tracked_apps():
-            print("Вызов main()")
+            #print("Вызов main()")
             main(i[0])
-            time.sleep(5) 
+            time.sleep(300) 
 
 def show_error(message):
     error_win = QMessageBox()
     error_win.setIcon(QMessageBox.Critical)
     error_win.setWindowTitle("Ошибка")
     error_win.setText(message)
-    error_win.setStandardButtons(QMessageBox.Ok)  # Кнопка "ОК"
+    error_win.setStandardButtons(QMessageBox.Ok)
     error_win.exec_()
 
 def main(name):
@@ -105,7 +107,14 @@ def main(name):
                 cur = con.cursor()
 
                 time_str = f"{min_app_time} мин"
-                cur.execute("INSERT INTO data (name, time, date) VALUES (?, ?, ?)", (name, time_str, datetime.now().date()))
+                cur.execute("""SELECT * FROM data WHERE name=? AND date=?""", (name, datetime.now().date(),))
+                record_exists = cur.fetchall()
+                
+                if record_exists:
+                    cur.execute("""UPDATE data SET time=? WHERE name=? AND date=?""", (time_str, name, datetime.now().date()))
+                else:
+                    cur.execute("""INSERT INTO data (name, time, date) VALUES (?, ?, ?)""", (name, time_str, datetime.now().date()))
+                    
                 con.commit()
 
                 logging.info(f"💾 Данные записаны: {name}, {time_str}")

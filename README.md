@@ -21,13 +21,6 @@
 pip install -r requirements.txt
 ```
 
-Файл `requirements.txt` должен содержать:  
-```txt
-PyQt5
-psutil
-sqlite3
-```
-
 ### 2. Запустите приложение  
 ```bash
 python main.py

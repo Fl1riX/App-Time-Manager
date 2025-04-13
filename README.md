@@ -1,5 +1,6 @@
 # App-Time-Manager
 ![alt text](image.png)
+![alt text](image 2.png)
 # App Time Manager  
 
 ## 📌 Описание  

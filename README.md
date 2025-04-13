@@ -21,13 +21,6 @@
 pip install -r requirements.txt
 ```
 
-Файл `requirements.txt` должен содержать:  
-```txt
-PyQt5
-psutil
-sqlite3
-```
-
 ### 2. Запустите приложение  
 ```bash
 python main.py
@@ -54,27 +47,12 @@ python main.py
 ## 📌 Description  
 **App Time Manager** is an application for tracking the runtime of processes on a computer. It allows users to add applications to a tracking list, automatically record their uptime, and store data in an SQLite database.  
 
-## 🚀 Features  
-- **Track application runtime**  
-- **Save data in SQLite**  
-- **View overall statistics for each process**  
-- **Display usage time for the current day**  
-- **Remove applications from tracking**  
-- **Log activities to a file**  
-
 ## 📦 Installation and Launch  
 ### 1. Install dependencies  
 Ensure that you have Python (version 3.6 or higher) installed. Then, install the required dependencies:  
 
 ```bash
 pip install -r requirements.txt
-```
-
-The `requirements.txt` file should contain:  
-```txt
-PyQt5
-psutil
-sqlite3
 ```
 
 ### 2. Run the application  

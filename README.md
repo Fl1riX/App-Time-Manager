@@ -1,6 +1,6 @@
 # App-Time-Manager
-![alt text](images\image.png)
-![alt text](images\image_2.png)
+![Меню](images\image.png)
+![Статистика](images\image_2.png)
 # App Time Manager  
 
 ## 📌 Описание  

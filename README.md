@@ -1,7 +1,7 @@
 # App-Time-Manager
 ![Меню](images/image.png)
 -----------
-![Статистика](images/image_2.png)
+![Статистика](images/image2.png)
 -----------
 # App Time Manager  
 

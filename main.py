@@ -162,7 +162,6 @@ class InfoWindow(QWidget):
             ax.bar(dates, minutes, color='blue')
 
             # Настройка текста графика
-            ax.set_title("Время за 5 дней", color='white')
             ax.set_xlabel("Дата", color='white')
             ax.set_ylabel("Минут", color='white')
             ax.tick_params(axis='both', colors='white')

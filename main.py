@@ -1,7 +1,10 @@
-import psutil, sqlite3, logging, sys, time, threading
+import psutil, sqlite3, logging, sys, time, threading, matplotlib.pyplot as plt
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidget, QWidget, QVBoxLayout, QPushButton, QDesktopWidget, QLabel, QLineEdit, QMessageBox
+from PyQt5 import QtWidgets
 from PyQt5.QtCore import pyqtSignal
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
 from datetime import datetime
 
 logging.basicConfig(
@@ -140,35 +143,48 @@ def main(name):
 """APP GUI"""
 class InfoWindow(QWidget):
     deleted = pyqtSignal()
+    
     def __init__(self, title):
         logging.info(f"Открыта информация о {title}")
         super().__init__()
         
         data = get_all_time()
+        layout = QVBoxLayout(self)
         
         self.setWindowTitle(title)
         self.setFixedSize(400, 300)
-        self.setStyleSheet("background-color: black;")
+        self.setStyleSheet("background-color: black; QLabel { color: white; font-size: 15px}; QPushButton { color: white; font-size: 15px}")
         
-        layout = QVBoxLayout()
-        
-        #Текст с информацией
         if data != 0:
-            self.delete = QPushButton("Удалить")
-            self.delete.setStyleSheet("QPushButton { color: white; font-size: 15px}")
-            self.delete.clicked.connect(lambda: (self.delete_app(title)))
+            fig = Figure(facecolor='black')
+            ax = fig.add_subplot(facecolor='black')
+            dates, minutes = self.schedule()
+            ax.bar(dates, minutes, color='blue')
 
-            if today_time(title)[0] != None:
-                self.label = QLabel(f"Общее время: {data[title]} мин\nВремя за сегодня: {today_time(title)[0]} мин")
-            else:
-                self.label = QLabel(f"Общее время: {data[title]} мин\nВремя за сегодня: 0 мин")
-                
-            self.label.setStyleSheet("QLabel { color: white; font-size: 15px}")
+            # Настройка текста графика
+            ax.set_title("Время за 5 дней", color='white')
+            ax.set_xlabel("Дата", color='white')
+            ax.set_ylabel("Минут", color='white')
+            ax.tick_params(axis='both', colors='white')
+
+            canvas = FigureCanvasQTAgg(fig)
+            layout.addWidget(canvas)
+
+            # Текст с информацией
+            today = today_time(title)[0] if today_time(title)[0] else 0
+            self.label = QLabel(
+                f"Общее время: {data[title]} мин\n"
+                f"Время за сегодня: {today} мин"
+            )
+            self.label.setStyleSheet("QLabel { color: white; }")
             layout.addWidget(self.label)
-            layout.addWidget(self.delete)
-            self.setLayout(layout)
+
+            self.delete_btn = QPushButton("Удалить")
+            self.delete_btn.setStyleSheet("QPushButton { color: white; }")
+            self.delete_btn.clicked.connect(lambda: self.delete_app(title))
+            layout.addWidget(self.delete_btn)
         else:
-            sys.exit()    
+            self.close()   
     
     def delete_app(self, name):
         with sqlite3.connect("data.db") as con:
@@ -179,6 +195,26 @@ class InfoWindow(QWidget):
             
         self.deleted.emit()
         self.close()
+        
+    #Создание графика 
+    @staticmethod
+    def schedule():
+        with sqlite3.connect("data.db") as con:
+            cur = con.cursor()
+            
+            cur.execute("""SELECT date, time FROM data ORDER BY date DESC LIMIT 5""")
+            con.commit()
+            
+            result = list(cur.fetchall())
+            
+        dates = []
+        times = []
+        
+        for date_str, time_str in result:
+            dates.append(date_str)
+            times.append(int(time_str.split(" ")[0]))  
+        
+        return dates, times
         
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -252,6 +288,8 @@ class AppTimeManager:
 if __name__ == "__main__":
     th = threading.Thread(target=tracking_loop, daemon=True)
     th.start()
+    
+    InfoWindow.schedule()
     
     app_manager = AppTimeManager()
     app_manager.run()

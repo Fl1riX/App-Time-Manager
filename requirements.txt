@@ -1,3 +1,4 @@
 PyQt5
 psutil
 sqlite3
+matplotlib

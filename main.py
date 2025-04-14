@@ -1,8 +1,6 @@
-import psutil, sqlite3, logging, sys, time, threading, matplotlib.pyplot as plt
+import psutil, sqlite3, logging, sys, time, threading, gui
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QListWidget, QWidget, QVBoxLayout, QPushButton, QDesktopWidget, QLabel, QLineEdit, QMessageBox
-from PyQt5 import QtWidgets
-from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QApplication, QDesktopWidget
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from datetime import datetime
@@ -59,17 +57,8 @@ def get_tracked_apps():
 def tracking_loop():
     while True:
         for i in get_tracked_apps():
-            #print("Вызов main()")
             main(i[0])
             time.sleep(300) 
-
-def show_error(message):
-    error_win = QMessageBox()
-    error_win.setIcon(QMessageBox.Critical)
-    error_win.setWindowTitle("Ошибка")
-    error_win.setText(message)
-    error_win.setStandardButtons(QMessageBox.Ok)
-    error_win.exec_()
 
 def main(name):
     try:
@@ -90,7 +79,7 @@ def main(name):
 
         if not min_time_list:
             logging.warning(f"⚠️ Процесс '{name}' не найден.")
-            show_error(f"Процесс '{name}' не найден.")
+            gui.show_error(f"Процесс '{name}' не найден.")
             return
 
         start_time = min(min_time_list)
@@ -125,154 +114,24 @@ def main(name):
 
     except psutil.NoSuchProcess:
         logging.error(f"❌ Процесс '{name}' не найден.")
-        show_error(f"Процесс '{name}' не найден.")
+        gui.show_error(f"Процесс '{name}' не найден.")
         
     except psutil.AccessDenied:
         logging.error(f"🚫 Нет доступа к процессу '{name}'.")
-        show_error(f"Нет доступа к процессу '{name}'.")
+        gui.show_error(f"Нет доступа к процессу '{name}'.")
 
     except psutil.ZombieProcess:
         logging.error(f"⚰️ Процесс '{name}' стал зомби.")
-        show_error(f"Процесс '{name}' стал зомби.")
+        gui.show_error(f"Процесс '{name}' стал зомби.")
 
     except Exception as e:
         logging.error(f"❌ Неизвестная ошибка: {e}")
-        show_error(f"Неизвестная ошибка: {e}")
-
-
-"""APP GUI"""
-class InfoWindow(QWidget):
-    deleted = pyqtSignal()
-    
-    def __init__(self, title):
-        logging.info(f"Открыта информация о {title}")
-        super().__init__()
+        gui.show_error(f"Неизвестная ошибка: {e}")
         
-        data = get_all_time()
-        layout = QVBoxLayout(self)
-        
-        self.setWindowTitle(title)
-        self.setFixedSize(400, 300)
-        self.setStyleSheet("background-color: black; QLabel { color: white; font-size: 15px}; QPushButton { color: white; font-size: 15px}")
-        
-        if data != 0:
-            fig = Figure(facecolor='black')
-            ax = fig.add_subplot(facecolor='black')
-            dates, minutes = self.schedule()
-            ax.bar(dates, minutes, color='blue')
-
-            # Настройка текста графика
-            ax.set_xlabel("Дата", color='white')
-            ax.set_ylabel("Минут", color='white')
-            ax.tick_params(axis='both', colors='white')
-
-            canvas = FigureCanvasQTAgg(fig)
-            layout.addWidget(canvas)
-
-            # Текст с информацией
-            today = today_time(title)[0] if today_time(title)[0] else 0
-            self.label = QLabel(
-                f"Общее время: {data[title]} мин\n"
-                f"Время за сегодня: {today} мин"
-            )
-            self.label.setStyleSheet("QLabel { color: white; }")
-            layout.addWidget(self.label)
-
-            self.delete_btn = QPushButton("Удалить")
-            self.delete_btn.setStyleSheet("QPushButton { color: white; }")
-            self.delete_btn.clicked.connect(lambda: self.delete_app(title))
-            layout.addWidget(self.delete_btn)
-        else:
-            self.close()   
-    
-    def delete_app(self, name):
-        with sqlite3.connect("data.db") as con:
-            cur = con.cursor()  
-            
-            cur.execute("""DELETE FROM data WHERE name=?""", (name,))
-            con.commit()
-            
-        self.deleted.emit()
-        self.close()
-        
-    #Создание графика 
-    @staticmethod
-    def schedule():
-        with sqlite3.connect("data.db") as con:
-            cur = con.cursor()
-            
-            cur.execute("""SELECT date, time FROM data ORDER BY date DESC LIMIT 5""")
-            con.commit()
-            
-            result = list(cur.fetchall())
-            
-        dates = []
-        times = []
-        
-        for date_str, time_str in result:
-            dates.append(date_str)
-            times.append(int(time_str.split(" ")[0]))  
-        
-        return dates, times
-        
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        
-        self.setWindowTitle("App Time Manager")
-        self.setFixedSize(800, 500)
-        self.setStyleSheet("background-color: black;")
-        
-        central_widget = QWidget()
-        layout = QVBoxLayout()
-        
-        #Список отслеживаемых приложений
-        self.text_list = QListWidget()
-        self.text_list.itemClicked.connect(lambda item: self.on_item_clicked(item))
-        
-        data = get_all_time()
-        if data!= 0:
-            self.refresh_list()
-        else:
-            logging.error("❌ Ошибка при получении информации из бд, закрытие приложения.")
-            sys.exit()
-            
-        self.text_list.setStyleSheet("QListWidget { color: white; font-size: 15px}")
-        self.setCentralWidget(central_widget)
-        
-        #Кнопка добавления приложения в отслеживаемые
-        self.add_btn = QPushButton("Добавить")
-        self.add_btn.setStyleSheet("QPushButton { color: white; font-size: 15px}")
-        self.add_btn.clicked.connect(lambda:(self.track_app(), self.refresh_list(), self.entry.clear()))
-        
-        #Поле ввода текста
-        self.entry = QLineEdit(self)
-        self.entry.setPlaceholderText("Введите название процесса")
-        self.entry.setStyleSheet("QLineEdit { color: white; font-size: 15px}")
-        
-        layout.addWidget(self.text_list)
-        layout.addWidget(self.entry)
-        layout.addWidget(self.add_btn)
-        central_widget.setLayout(layout)
-        
-    def on_item_clicked(self, item):
-        self.info_win = InfoWindow(item.text())
-        self.info_win.deleted.connect(self.refresh_list)  # Связываем сигнал с обновлением списка
-        self.info_win.show()
-    
-    def refresh_list(self): #обновляем список отслеживаемых приложений
-        self.text_list.clear()
-        data = get_all_time()
-        self.text_list.addItems(data.keys())
-    
-    def track_app(self):
-        name = self.entry.text()
-        main(name)
-
 class AppTimeManager:   
     def __init__(self):
         self.app = QApplication(sys.argv)
-        self.main_win = MainWindow()
+        self.main_win = gui.MainWindow()
     
     def center(self):
         qr = self.frameGeometry()
@@ -287,8 +146,6 @@ class AppTimeManager:
 if __name__ == "__main__":
     th = threading.Thread(target=tracking_loop, daemon=True)
     th.start()
-    
-    InfoWindow.schedule()
     
     app_manager = AppTimeManager()
     app_manager.run()

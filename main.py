@@ -1,10 +1,20 @@
-import psutil, sqlite3, logging, sys, time, threading, gui
+import psutil
+import sqlite3
+import logging
+import sys
+import time
+import threading
+import shutil
+import getpass
+import os
+import gui
 
 from PyQt5.QtWidgets import QApplication, QDesktopWidget
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.figure import Figure
+from pyqadmin import admin
 from datetime import datetime
 
+# The `logging.basicConfig()` function call in the provided Python code snippet is configuring the
+# root logger for the logging module. Here's a breakdown of the parameters used in this call:
 logging.basicConfig(
     level=logging.INFO,
     filename="manager_logs.log",
@@ -14,6 +24,12 @@ logging.basicConfig(
 )
     
 def get_all_time():
+    """
+    The function `get_all_time` retrieves the maximum time spent per day for each name from a SQLite
+    database and returns a dictionary with the total time spent by each name.
+    :return: A dictionary containing the total maximum time for each unique name in the database is
+    being returned.
+    """
     data = {}
     try:
         with sqlite3.connect("data.db") as con:
@@ -59,8 +75,58 @@ def tracking_loop():
         for i in get_tracked_apps():
             main(i[0])
             time.sleep(300) 
+            
+def write_app_time(time, name):
+    try:
+        with sqlite3.connect("data.db") as con:
+            cur = con.cursor()
+            time_str = f"{time} мин"
+            cur.execute("""SELECT * FROM data WHERE name=? AND date=?""", (name, datetime.now().date(),))
+            
+            
+            if cur.fetchall():
+                cur.execute("""UPDATE data SET time=? WHERE name=? AND date=?""", (time_str, name, datetime.now().date()))
+            else:
+                cur.execute("""INSERT INTO data (name, time, date) VALUES (?, ?, ?)""", (name, time_str, datetime.now().date()))
+                
+            con.commit()
+            logging.info(f"💾 Данные записаны: {name}, {time_str}")
+    except sqlite3.Error as e:
+        logging.error(f"❌ Ошибка SQLite: {e}")
+
+
+@admin
+def add_to_startup():
+    """
+    This Python function adds the current executable file to the Windows startup folder for automatic
+    execution on system boot.
+    """
+    try:
+        file_path = sys.executable
+        file_name = os.path.basename(file_path)
+        startup_path = f"C:/Users/{getpass.getuser()}/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/{file_name }"
+
+        if not os.path.exists(startup_path):
+            shutil.copy(file_path, startup_path, follow_symlinks=True)
+            logging.info("✅ Исполняемый файл был добавлен в автозагрузку! ✅")
+        else: 
+            logging.info("✅ Исполняемый файл уже был добавлен в автозагрузку! ✅")
+    except Exception as e:
+        logging.error(f"❌ Ошибка при добавлении в автозагрузку: {e} ❌")
 
 def main(name):
+    """
+    This Python function searches for a process by name, calculates its running time, and stores the
+    data in a SQLite database, handling various exceptions along the way.
+    
+    :param name: The `name` parameter in the `main` function is used to specify the name of the process
+    you want to search for and track its start time and running duration. The function will search for a
+    process with the given name, calculate the time it has been running, and store this information in a
+    :return: The `main` function does not explicitly return any value. However, it contains multiple
+    return statements within conditional blocks. The function can return early with `return` statements
+    in case the process is not found, there is an error, or if an exception is caught. If none of these
+    conditions are met, the function will reach the end and implicitly return `None`.
+    """
     try:
         min_time_list = []
 
@@ -92,25 +158,8 @@ def main(name):
         # Подсчет времени работы приложения
         min_app_time = now_time - start_time
 
-        try:
-            with sqlite3.connect("data.db") as con:
-                cur = con.cursor()
-
-                time_str = f"{min_app_time} мин"
-                cur.execute("""SELECT * FROM data WHERE name=? AND date=?""", (name, datetime.now().date(),))
-                record_exists = cur.fetchall()
-                
-                if record_exists:
-                    cur.execute("""UPDATE data SET time=? WHERE name=? AND date=?""", (time_str, name, datetime.now().date()))
-                else:
-                    cur.execute("""INSERT INTO data (name, time, date) VALUES (?, ?, ?)""", (name, time_str, datetime.now().date()))
-                    
-                con.commit()
-
-                logging.info(f"💾 Данные записаны: {name}, {time_str}")
-
-        except sqlite3.Error as e:
-            logging.error(f"❌ Ошибка SQLite: {e}")
+        write_app_time(min_app_time, name)
+    
 
     except psutil.NoSuchProcess:
         logging.error(f"❌ Процесс '{name}' не найден.")
@@ -128,6 +177,8 @@ def main(name):
         logging.error(f"❌ Неизвестная ошибка: {e}")
         gui.show_error(f"Неизвестная ошибка: {e}")
         
+# The `AppTimeManager` class initializes a PyQt application with a main window and provides a method
+# to center the window and run the application.
 class AppTimeManager:   
     def __init__(self):
         self.app = QApplication(sys.argv)
@@ -144,8 +195,11 @@ class AppTimeManager:
         sys.exit(self.app.exec_())
 
 if __name__ == "__main__":
-    th = threading.Thread(target=tracking_loop, daemon=True)
-    th.start()
+    #starting main thread
+    main_th = threading.Thread(target=tracking_loop, daemon=True)
+    main_th.start()
+    
+    add_to_startup()
     
     app_manager = AppTimeManager()
     app_manager.run()

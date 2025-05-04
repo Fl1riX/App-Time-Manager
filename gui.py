@@ -1,8 +1,12 @@
 import logging
+import sqlite3
+import sys
 
 from PyQt5.QtWidgets import QMainWindow, QListWidget, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QMessageBox
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
 from PyQt5.QtCore import pyqtSignal, Qt
-from main import *
+from main import get_all_time, today_time, main
 
 def show_error(message):
     error_win = QMessageBox()
@@ -12,6 +16,8 @@ def show_error(message):
     error_win.setStandardButtons(QMessageBox.Ok)
     error_win.exec_()
 
+# This class represents an information window in a PyQt application that displays data and a graph for
+# a specific application, with the ability to delete the application's data.
 class InfoWindow(QWidget):
     deleted = pyqtSignal()
     
@@ -63,10 +69,20 @@ class InfoWindow(QWidget):
             layout.addWidget(canvas)
             
             # Текст с информацией
-            today = today_time(title)[0] if today_time(title)[0] else 0
-            self.label = QLabel(f"Общее время: {data[title]} мин\n"
-                                f"Время за сегодня: {today} мин")
+            if data[title] < 60:
+                self.label = QLabel(f"Общее время: {data[title]} мин\n")
+            else:
+                self.label = QLabel(f"Общее время: {round(data[title]/60, 2)}ч\n")
+            
             layout.addWidget(self.label)
+            
+            today = today_time(title)[0]
+            if today < 60:
+                self.label2 = QLabel(f"Время за сегодня: {today} мин")
+            else:
+                self.label2 = QLabel(f"Время за сегодня: {round(today/60, 2)}ч")
+                
+            layout.addWidget(self.label2)
 
             self.delete_btn = QPushButton("Удалить")
             self.delete_btn.setFixedSize(100, 30)
@@ -76,6 +92,12 @@ class InfoWindow(QWidget):
             self.close()   
 
     def delete_app(self, name):
+        """
+        The function `delete_app` deletes a record from a SQLite database based on the provided name and
+        emits a signal before closing.
+        
+        :param name: The `delete_app` function takes two parameters:
+        """
         with sqlite3.connect("data.db") as con:
             cur = con.cursor()  
             
@@ -88,6 +110,19 @@ class InfoWindow(QWidget):
     #Создание графика 
     @staticmethod
     def schedule(app):
+        """
+        The `schedule` static method retrieves the dates and times of the most recent 5 entries for a
+        given app from a SQLite database.
+        
+        :param app: The `app` parameter in the `schedule` method is used to specify the name of the
+        application for which you want to retrieve scheduling information. This method connects to a
+        SQLite database, retrieves the most recent 5 entries for the specified application name from the
+        `data` table, and then extracts the
+        :return: The `schedule` method is returning two lists: `dates` and `times`. The `dates` list
+        contains the date strings retrieved from the database for a specific application (specified by
+        the `app` parameter), and the `times` list contains the integer values extracted from the time
+        strings after splitting them.
+        """
         with sqlite3.connect("data.db") as con:
             cur = con.cursor()
             
@@ -105,6 +140,8 @@ class InfoWindow(QWidget):
             
         return dates, times
         
+# The `MainWindow` class in Python creates a GUI window for an app time manager with features to track
+# and add applications.
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()

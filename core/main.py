@@ -22,8 +22,6 @@ logging.basicConfig(
     encoding="utf-8",
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
-    
-#! TODO: напоминание отдохнуть и возможность ставить цель по времени 
         
 def tracking_loop():
     while True:
